@@ -169,10 +169,10 @@ class ySC{
         return withdrawalAmount * (1 - 0.005); //0.5% withdrawal fee
     }
 }
-
+var ethPrice = [110,104,75,50,34,30,20,110];
 function runSimulation(){
     var investors = [];
-    var ethPrice = [110,104,75,50,34,30,20,110];
+    
     investors.push({
         usdAmount: 1000,
         ethEnterPrice: 100,
