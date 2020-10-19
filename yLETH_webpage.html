@@ -2,7 +2,7 @@
 <html>
 
 <head>
-	<title>Line Chart</title>
+	<title>yLETH 1.25x leveraged ETH Fund</title>
 	<script src="https://www.chartjs.org/dist/2.9.3/Chart.min.js"></script>
 	<script src="https://www.chartjs.org/samples/latest/utils.js"></script>
 	<script src="./yLETH.js"></script>
@@ -23,64 +23,61 @@
 		var config = {
 			type: 'line',
 			data: {
-				labels: [1,2,3,4,5,6,7,8],
+				labels: [...Array(ethPrice.length).keys()],
 				datasets: [
-				// 	{
-				// 	label: 'dataset - big points',
-				// 	data: [
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor()
-				// 	],
-				// 	backgroundColor: window.chartColors.red,
-				// 	borderColor: window.chartColors.red,
-				// 	fill: false,
-				// 	borderDash: [5, 5],
-				// 	pointRadius: 15,
-				// 	pointHoverRadius: 10,
-				// }, {
-				// 	label: 'dataset - individual point sizes',
-				// 	data: [
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor()
-				// 	],
-				// 	backgroundColor: window.chartColors.blue,
-				// 	borderColor: window.chartColors.blue,
-				// 	fill: false,
-				// 	borderDash: [5, 5],
-				// 	pointRadius: [2, 4, 6, 18, 0, 12, 20],
-				// }, {
-				// 	label: 'dataset - large pointHoverRadius',
-				// 	data: [
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor(),
-				// 		randomScalingFactor()
-				// 	],
-				// 	backgroundColor: window.chartColors.green,
-				// 	borderColor: window.chartColors.green,
-				// 	fill: false,
-				// 	pointHoverRadius: 30,
-				// }, 
 				{
-					label: 'dataset - large pointHitRadius',
+					label: 'investor1 value',
+					data: investors[0].value,
+					backgroundColor: window.chartColors.red,
+					borderColor: window.chartColors.red,
+					fill: false,
+					borderDash: [5, 5],
+					pointRadius: 15,
+					pointHoverRadius: 10,
+					yAxisID: 'Investor_Value'
+				}, 
+				{
+					label: 'investor2 value',
+					data: investors[1].value,
+					backgroundColor: window.chartColors.blue,
+					borderColor: window.chartColors.blue,
+					fill: false,
+					borderDash: [5, 5],
+					pointRadius: 15,
+					pointHoverRadius: 10,
+					yAxisID: 'Investor_Value'
+				}, 
+				{
+					label: 'investor3 value',
+					data: investors[2].value,
+					backgroundColor: window.chartColors.orange,
+					borderColor: window.chartColors.orange,
+					fill: false,
+					borderDash: [5, 5],
+					pointRadius: 15,
+					pointHoverRadius: 10,
+					yAxisID: 'Investor_Value'
+				}, 
+				{
+					label: 'NAV',
+					data: nav,
+					backgroundColor: window.chartColors.green,
+					borderColor: window.chartColors.green,
+					fill: false,
+					pointHitRadius: 20,
+					pointRadius: 10,
+					pointHoverRadius: 30,
+					yAxisID: 'Investor_Value'
+				},
+				{
+					label: 'price',
 					data: ethPrice,
 					backgroundColor: window.chartColors.yellow,
 					borderColor: window.chartColors.yellow,
 					fill: false,
 					pointHitRadius: 20,
+					pointRadius: 10,
+					pointHoverRadius: 30,
 				}]
 			},
 			options: {
@@ -100,12 +97,21 @@
 						}
 					}],
 					yAxes: [{
-						display: true,
-						scaleLabel: {
+							type: 'linear', 
 							display: true,
-							labelString: 'Price'
-						}
-					}]
+							position: 'left',
+							id: 'Price',
+							labelString: 'Price',
+						}, {
+							type: 'linear', 
+							display: true,
+							position: 'right',
+							id: 'Investor_Value',
+
+							gridLines: {
+								drawOnChartArea: false, 
+							},
+						}],
 				},
 				title: {
 					display: true,

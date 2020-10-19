@@ -135,6 +135,7 @@ class ySC{
         console.log('line 135')
         console.log(price, this.totalLockedETH , this.totalFreeETH, this.totalOwedValue, poolValue)
         let amountMinted = (usdAmount / poolValue) * this.yELSupply;
+        this.totalETHExposure = this.totalLockedETH + this.totalFreeETH;
         this.yELSupply += amountMinted;
         return amountMinted;
     }
@@ -158,8 +159,16 @@ class ySC{
             this.totalLockedETH = this.totalLockedETH - unwindAmount; 
             this.totalFreeETH = 0;
         }
-        this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
+        
         this.yELSupply = this.yELSupply - yELAmount; 
+        //remove totalOwnedValue when last withdrawals
+        if(this.yELSupply < 0.5){
+            this.totalOwedValue = this.totalOwedValue - this.totalLockedETH * price
+            this.totalLockedETH = 0;
+        }
+
+        this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
+
         withdrawalAmount = this._payFee(withdrawalAmount);
         return withdrawalAmount; //returns eth 
     }
@@ -169,37 +178,43 @@ class ySC{
         return withdrawalAmount * (1 - 0.005); //0.5% withdrawal fee
     }
 }
-var ethPrice = [110,104,75,50,34,30,20,110];
+var ethPrice = [110,104,101,100,99,90,80,75,50,35,34,33,30,26,25,24,20,50, 75, 90, 99, 100, 101, 104, 105, 106, 110];
+var investors = [];
+investors.push({
+    usdAmount: 1000,
+    ethEnterPrice: 100,
+    ethExitPriceProfit: 105,
+    ethExitPriceLoss: 10,
+    yEL: null,
+    cashOutValue: null,
+    cashOutEth: null,
+    value: [null]
+});
+investors.push({
+    usdAmount: 1000,
+    ethEnterPrice: 34,
+    ethExitPriceProfit: 105,
+    ethExitPriceLoss: 9,
+    yEL: null,
+    cashOutValue: null,
+    cashOutEth: null,
+    value: [null]
+});
+investors.push({
+    usdAmount: 1000,
+    ethEnterPrice: 25,
+    ethExitPriceProfit: 105,
+    ethExitPriceLoss: 9,
+    yEL: null,
+    cashOutValue: null,
+    cashOutEth: null,
+    value: [null]
+});
+
+var nav = [0];
+let totalyEL = [1];
 function runSimulation(){
-    var investors = [];
-    
-    investors.push({
-        usdAmount: 1000,
-        ethEnterPrice: 100,
-        ethExitPriceProfit: 105,
-        ethExitPriceLoss: 10,
-        yEL: null,
-        cashOutValue: null,
-        cashOutEth: null
-    });
-    investors.push({
-        usdAmount: 1000,
-        ethEnterPrice: 34,
-        ethExitPriceProfit: 105,
-        ethExitPriceLoss: 9,
-        yEL: null,
-        cashOutValue: null,
-        cashOutEth: null
-    });
-    investors.push({
-        usdAmount: 1000,
-        ethEnterPrice: 25,
-        ethExitPriceProfit: 105,
-        ethExitPriceLoss: 9,
-        yEL: null,
-        cashOutValue: null,
-        cashOutEth: null
-    });
+
     //var ethPrice = randomlyGenerateEthPrice(100, 50, 10);
 
     //for(let a = 0; a < 5; a++){
@@ -211,6 +226,7 @@ function runSimulation(){
     let ysc = new ySC();
 
     for(let a = 1; a < ethPrice.length; a++){
+        
         for(let b = 0; b < investors.length; b++){
             //investor invests 
             let investor = investors[b];
@@ -235,9 +251,23 @@ function runSimulation(){
                     investor.cashOutValue = investor.cashOutEth * investor.ethExitPriceProfit;
                     console.log(b, investor.cashOutEth, investor.cashOutValue, investor.ethExitPriceProfit, ethPrice[a], ethPrice[a-1])
                 }
-
+                console.log(ysc)
             }
+            
         }
+        for(let b = 0; b < investors.length; b++){
+            let investor = investors[b];
+            let investorvalue = investor.cashOutValue !== null ? investor.cashOutValue : 
+                    investor.yEL === null ? null :
+                    ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue) === 0 ? null :
+                        (investor.yEL / ysc.yELSupply) * ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue);
+
+            investor.value.push( investorvalue);
+        }
+
+        totalyEL.push(ysc.yELSupply)
+        nav.push(((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue))
+
     }
 }
 
