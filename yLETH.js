@@ -9,6 +9,175 @@
 // 1. If ethEnterPrice is between price step, they are invested at their enterPrice
 // 2. They exit at their ethExitPrice when it is between price step (can occur in same step as 1)
 
+class ySC{
+    constructor(){
+        this.investedETH = 0;
+        this.totalBorrowedValue = 0; //will accrue due to fees
+        this.totalETHExposure = 0;
+        this.totalLockedETH = 0;
+        this.totalFreeETH = 0;
+        this.yELSupply = 0;
+        this.listMakerCDP = []; 
+    }
+
+    _reCollateralize(price, ratio){
+        //moves free eth into collateralization. 
+        /*
+            Example: 500 DAI from $1000usd worth of ETH for initial CDP
+                     ETH is now worth $750. We need to add $250usd more ETH
+                     So its totalOwnedValue * 2 - currentLockedETH value = FreeETH to be used * Price
+        */
+        if(ratio <= .75){
+            let usdValueNeed = (this.totalBorrowedValue * 2)- (this.totalLockedETH * price);
+            let amountFreeETHNeeded = usdValueNeed / price;
+            if(this.totalFreeETH < amountFreeETHNeeded){ //not enough so we just put all our free ETH in
+                this.totalLockedETH += this.totalFreeETH;
+                this.totalFreeETH = 0;
+            }
+            else{
+                this.totalFreeETH = this.totalFreeETH - amountFreeETHNeeded;
+                this.totalLockedETH += amountFreeETHNeeded;
+            }
+        }
+    }
+
+    _addInvestor(price, ratio, usdAmount){
+        let ethAmount = usdAmount / price;
+
+        //TODO: something wrong here and also something wrong when value hits entry price multiple times
+
+        //deposit money as freeETH
+        this.totalFreeETH += ethAmount;
+        //add totalBorrowedValue as .25 of usdAmount
+        this.totalBorrowedValue += usdAmount * .25;
+        //add to FreeETH the (.25*usdAmount) / price
+        this.totalFreeETH += ethAmount * .25;
+        this._reCollateralize(price, ratio); //recollateralize previous CDP before adding new investor
+
+    }
+
+    mint(price, usdAmount){
+        let ethAmount = usdAmount / price;
+        this.investedETH += ethAmount; 
+        let poolValue = ((this.totalLockedETH + this.totalFreeETH) * price) - this.totalBorrowedValue;
+        if(poolValue === 0){
+            this.yELSupply = usdAmount;
+            poolValue = usdAmount;
+            this.totalLockedETH = ethAmount * .5;
+            this.totalFreeETH = ethAmount * .75;
+            this.totalBorrowedValue = usdAmount * 0.25;
+            this.totalETHExposure = this.totalLockedETH + this.totalFreeETH;
+            
+            return usdAmount;
+        }
+        else{
+            let lockedEthValue = this.totalLockedETH * price;
+            let ratio = lockedEthValue / (this.totalBorrowedValue * 2); //ratio away from 200% collateralization
+            
+            this._addInvestor(price, ratio, usdAmount);
+        }
+        //console.log('mint')
+        //console.log(price, this.totalLockedETH , this.totalFreeETH, this.totalBorrowedValue, poolValue)
+        let amountMinted = (usdAmount / poolValue) * this.yELSupply;
+        this.totalETHExposure = this.totalLockedETH + this.totalFreeETH;
+        this.yELSupply += amountMinted;
+        return amountMinted;
+    }
+
+
+    withdrawal(price, yELAmount){
+        let ratio = yELAmount / this.yELSupply;
+        
+        let withdrawalAmount = (this.totalETHExposure - (this.totalBorrowedValue / price)) * ratio;
+        //console.log(withdrawalAmount, ratio, (this.totalBorrowedValue / price), this.totalETHExposure, this.totalFreeETH, this.totalLockedETH)
+        if(this.totalFreeETH > withdrawalAmount){
+            this.totalFreeETH = this.totalFreeETH - withdrawalAmount;
+        }
+        else{
+            //unwind some position until we have enough
+            //  1. sell some eth for dai
+            //  2. return dai to unlock eth
+            // following is just a simulation of unwinding
+            
+            let unwindAmount = withdrawalAmount - this.totalFreeETH;
+            this.totalLockedETH = this.totalLockedETH - unwindAmount; 
+            this.totalFreeETH = 0;
+        }
+        
+        this.yELSupply = this.yELSupply - yELAmount; 
+        //remove totalOwnedValue when last withdrawals
+        if(this.yELSupply < 0.5){
+            this.totalBorrowedValue = this.totalBorrowedValue - this.totalLockedETH * price
+            this.totalLockedETH = 0;
+        }
+
+        this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
+
+        this.investedETH -= withdrawalAmount / price;
+        withdrawalAmount = this._payFee(withdrawalAmount);
+        return withdrawalAmount; //returns eth 
+    }
+
+    _payFee(withdrawalAmount){
+        //withdraw 0.005 * withdrawalAmount to our treasury address
+        return withdrawalAmount * (1 - 0.005); //0.5% withdrawal fee
+    }
+}
+function initInvestor(investors, isSecond){
+    investors.push({
+        usdAmount: 1000,
+        ethEnterPrice: 100,
+        ethExitPriceProfit: 105,
+        ethExitPriceLoss: 10,
+        yEL: null,
+        cashOutValue: null,
+        cashOutEth: null,
+        value: [null]
+    });
+    investors.push({
+        usdAmount: 1000,
+        ethEnterPrice: 34,
+        ethExitPriceProfit: 105,
+        ethExitPriceLoss: 9,
+        yEL: null,
+        cashOutValue: null,
+        cashOutEth: null,
+        value: [null]
+    });
+    investors.push({
+        usdAmount: 1000,
+        ethEnterPrice: 25,
+        ethExitPriceProfit: 105,
+        ethExitPriceLoss: 9,
+        yEL: null,
+        cashOutValue: null,
+        cashOutEth: null,
+        value: [null]
+    });
+}
+
+function removeWithdrawalDuplicates(investors){
+    for(let b = 0; b < investors.length; b++){
+        let investor = investors[b];
+        if(investor.cashOutValue !== null){
+            for(var i = investor.value.length - 1; i--; i > -1){
+                if(investor.value[i] !== investor.cashOutValue){
+                    investor.value.splice(i+2, investor.value.length - (i+2));
+                    break;
+                }
+            }
+        }
+    }
+}
+function getInvestorValue(investor, ysc, ethPrice){
+    let nav = ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice) - ysc.totalBorrowedValue;
+    
+    if(investor.cashOutValue !== null) 
+        return investor.cashOutValue;
+    if(investor.yEL === null || nav < 0.5)
+        return null;
+    return  (investor.yEL / ysc.yELSupply) * nav;
+}
 function random(min, max) {
     return Math.floor(Math.random() * (max - min) ) + min;
 }
@@ -81,225 +250,4 @@ function willExit(investor, price1, price2){
         || investor.ethExitPriceLoss.between(price1, price2, true));
 }
 
-class ySC{
-    constructor(){
-        this.totalOwedValue = 0;
-        this.totalETHExposure = 0;
-        this.totalLockedETH = 0;
-        this.totalFreeETH = 0;
-        this.yELSupply = 0;
-        this.listMakerCDP = [];
-    }
-
-    _reCollateralize(price, ratio){
-        if(ratio <= .75){
-            this.totalLockedETH = (this.totalOwedValue * 2)/ price; //200% collateralization
-            this.totalFreeETH = this.totalETHExposure - this.totalLockedETH;
-            if(this.totalFreeETH < 0)
-                this.totalFreeETH = 0;
-        }
-    }
-
-    _addInvestor(price, ratio, usdAmount){
-        let ethAmount = usdAmount / price;
-        if(this.totalFreeETH === 0 && ratio < 0.75){
-            this.totalLockedETH = (this.totalOwedValue * 2) / price; //200% collateralization
-            this.totalETHExposure += ethAmount * 1.25;
-            this.totalFreeETH = this.totalETHExposure - this.totalLockedETH;
-            if(this.totalFreeETH < 0)
-                this.totalFreeETH = 0;
-
-            if(this.totalFreeETH > ethAmount * 0.5){
-                this.totalOwedValue += ethAmount * 0.25 * price;
-                this.totalFreeETH -= ethAmount * 0.5; //this line is the only line that is different from below code block
-                this.totalLockedETH += ethAmount * 0.5;
-                this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
-            }
-            else{
-                this.totalOwedValue += this.totalFreeETH * price * 0.5;
-                this.totalLockedETH += this.totalFreeETH;
-                this.totalFreeETH = this.totalFreeETH * 0.5;
-            }
-            //console.log(this.totalFreeETH , this.totalETHExposure , this.totalLockedETH)
-        }
-        else{
-
-            if(this.totalFreeETH > ethAmount * 0.5){
-                this.totalOwedValue += ethAmount * 0.25 * price;
-                this.totalFreeETH -= ethAmount * 0.25; //by locking 0.5 * eth, we get back 0.25 eth
-                this.totalLockedETH += ethAmount * 0.5;
-                this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
-            }
-            else{
-                this.totalOwedValue += this.totalFreeETH * price * 0.5;
-                this.totalLockedETH += this.totalFreeETH;
-                this.totalFreeETH = this.totalFreeETH * 0.5;
-            }
-        }
-    }
-
-    mint(price, usdAmount){
-        let ethAmount = usdAmount / price;
-
-        let poolValue = ((this.totalLockedETH + this.totalFreeETH) * price) - this.totalOwedValue;
-        if(poolValue === 0){
-            this.yELSupply = usdAmount;
-            poolValue = usdAmount;
-            this.totalLockedETH = ethAmount * .5;
-            this.totalFreeETH = ethAmount * .75;
-            this.totalOwedValue = usdAmount * 0.25;
-            this.totalETHExposure = this.totalLockedETH + this.totalFreeETH;
-            return usdAmount;
-        }
-        else{
-            let lockedEthValue = this.totalLockedETH * price;
-            let ratio = lockedEthValue / (this.totalOwedValue * 2); //ratio away from 200% collateralization
-            this._reCollateralize(price, ratio); //recollateralize previous CDP before adding new investor
-            this._addInvestor(price, ratio, usdAmount);
-        }
-        console.log('line 135')
-        console.log(price, this.totalLockedETH , this.totalFreeETH, this.totalOwedValue, poolValue)
-        let amountMinted = (usdAmount / poolValue) * this.yELSupply;
-        this.totalETHExposure = this.totalLockedETH + this.totalFreeETH;
-        this.yELSupply += amountMinted;
-        return amountMinted;
-    }
-
-
-    withdrawal(price, yELAmount){
-        let ratio = yELAmount / this.yELSupply;
-        
-        let withdrawalAmount = (this.totalETHExposure - (this.totalOwedValue / price)) * ratio;
-        //console.log(withdrawalAmount, ratio, (this.totalOwedValue / price), this.totalETHExposure, this.totalFreeETH, this.totalLockedETH)
-        if(this.totalFreeETH > withdrawalAmount){
-            this.totalFreeETH = this.totalFreeETH - withdrawalAmount;
-        }
-        else{
-            //unwind some position until we have enough
-            //  1. sell some eth for dai
-            //  2. return dai to unlock eth
-            // following is just a simulation of unwinding
-            
-            let unwindAmount = withdrawalAmount - this.totalFreeETH;
-            this.totalLockedETH = this.totalLockedETH - unwindAmount; 
-            this.totalFreeETH = 0;
-        }
-        
-        this.yELSupply = this.yELSupply - yELAmount; 
-        //remove totalOwnedValue when last withdrawals
-        if(this.yELSupply < 0.5){
-            this.totalOwedValue = this.totalOwedValue - this.totalLockedETH * price
-            this.totalLockedETH = 0;
-        }
-
-        this.totalETHExposure = this.totalFreeETH + this.totalLockedETH;
-
-        withdrawalAmount = this._payFee(withdrawalAmount);
-        return withdrawalAmount; //returns eth 
-    }
-
-    _payFee(withdrawalAmount){
-        //withdraw 0.005 * withdrawalAmount to our treasury address
-        return withdrawalAmount * (1 - 0.005); //0.5% withdrawal fee
-    }
-}
-var ethPrice;
- //ethPrice = [110,104,101,100,99,90,80,75,50,35,34,33,30,26,25,24,20,50, 75, 90, 99, 100, 101, 104, 105, 106, 110];
-var investors = [];
-investors.push({
-    usdAmount: 1000,
-    ethEnterPrice: 100,
-    ethExitPriceProfit: 105,
-    ethExitPriceLoss: 10,
-    yEL: null,
-    cashOutValue: null,
-    cashOutEth: null,
-    value: [null]
-});
-investors.push({
-    usdAmount: 1000,
-    ethEnterPrice: 34,
-    ethExitPriceProfit: 105,
-    ethExitPriceLoss: 9,
-    yEL: null,
-    cashOutValue: null,
-    cashOutEth: null,
-    value: [null]
-});
-investors.push({
-    usdAmount: 1000,
-    ethEnterPrice: 25,
-    ethExitPriceProfit: 105,
-    ethExitPriceLoss: 9,
-    yEL: null,
-    cashOutValue: null,
-    cashOutEth: null,
-    value: [null]
-});
-
-var nav = [0];
-let totalyEL = [1];
-function runSimulation(){
-
-    ethPrice = randomlyGenerateEthPrice(80, 40, 10, investors);
-
-    //for(let a = 0; a < 5; a++){
-        //investors.push(randomlyGenerateInvestor());
-    //}
-    //console.log(investors)
-    //console.log(ethPrice)
-
-    let ysc = new ySC();
-
-    for(let a = 1; a < ethPrice.length; a++){
-        
-        for(let b = 0; b < investors.length; b++){
-            //investor invests 
-            let investor = investors[b];
-
-            if( willInvest(investor, ethPrice[a], ethPrice[a-1]) ){
-                investor.yEL = ysc.mint(investor.ethEnterPrice, investor.usdAmount);
-                console.log(b, investor.usdAmount,investor.ethEnterPrice, ysc, ethPrice[a], ethPrice[a-1], investor.yEL)
-                
-            }
-
-            //investor exit
-            if( willExit(investor, ethPrice[a], ethPrice[a-1]) ){
-                console.log(investor.yEL)
-                if(investor.ethExitPriceLoss.between(ethPrice[a], ethPrice[a-1], true)){
-                    investor.cashOutEth = ysc.withdrawal(investor.ethExitPriceLoss, investor.yEL);
-                    investor.cashOutValue = investor.cashOutEth * investor.ethExitPriceLoss;
-                    console.log(b, investor.cashOutEth, investor.cashOutValue, investor.ethExitPriceLoss, ethPrice[a], ethPrice[a-1])
-                }
-                    
-                else{
-                    investor.cashOutEth = ysc.withdrawal(investor.ethExitPriceProfit, investor.yEL);
-                    investor.cashOutValue = investor.cashOutEth * investor.ethExitPriceProfit;
-                    console.log(b, investor.cashOutEth, investor.cashOutValue, investor.ethExitPriceProfit, ethPrice[a], ethPrice[a-1])
-                }
-                console.log(ysc)
-            }
-            
-        }
-        for(let b = 0; b < investors.length; b++){
-            let investor = investors[b];
-            let investorvalue = investor.cashOutValue !== null ? investor.cashOutValue : 
-                    investor.yEL === null ? null :
-                    ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue) === 0 ? null :
-                        (investor.yEL / ysc.yELSupply) * ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue);
-            investor.value.push( investorvalue);
-        }
-
-        totalyEL.push(ysc.yELSupply)
-        nav.push(((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue))
-
-    }
-    for(let b = 0; b < investors.length; b++){
-        let investor = investors[b];
-        investor.value = [...new Set(investor.value)];
-    }
-
-}
-
-runSimulation();
 

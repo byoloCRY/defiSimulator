@@ -19,14 +19,83 @@
 	<div style="width:75%;">
 		<canvas id="canvas"></canvas>
 	</div>
+	<br>
+	<br>
+	<button id="randomizeData">Randomize Data</button>
 	<script>
+		var ethPrice;
+		
+		var investors = [];
+		initInvestor(investors);
+
+		ethPrice = [110,104,101,100,99,90,80,75,50,35,34,33,30,26,25,24,20,50, 75, 90, 99, 100, 101, 104, 105, 106, 110];
+		
+
+		var nav = [0];
+		function runSimulation(){
+
+			
+
+			//for(let a = 0; a < 5; a++){
+				//investors.push(randomlyGenerateInvestor());
+			//}
+			//console.log(investors)
+			//console.log(ethPrice)
+
+			let ysc = new ySC();
+
+			for(let a = 1; a < ethPrice.length; a++){
+				for(let b = 0; b < investors.length; b++){
+					//investor invests 
+					let investor = investors[b];
+
+					if( willInvest(investor, ethPrice[a], ethPrice[a-1]) ){
+						investor.yEL = ysc.mint(investor.ethEnterPrice, investor.usdAmount);
+						//console.log(b, investor.usdAmount,investor.ethEnterPrice, ysc, ethPrice[a], ethPrice[a-1], investor.yEL)
+						
+					}
+
+					//investor exit
+					if( willExit(investor, ethPrice[a], ethPrice[a-1]) ){
+						//console.log(investor.yEL)
+						if(investor.ethExitPriceLoss.between(ethPrice[a], ethPrice[a-1], true)){
+							investor.cashOutEth = ysc.withdrawal(investor.ethExitPriceLoss, investor.yEL);
+							investor.cashOutValue = investor.cashOutEth * investor.ethExitPriceLoss;
+							//console.log('b',b, 'cashOutEth', investor.cashOutEth, 'cashOutValue', investor.cashOutValue, 'ethExitPriceLoss', investor.ethExitPriceLoss, 'ethPrice', ethPrice[a], ethPrice[a-1])
+						}
+							
+						else{
+							investor.cashOutEth = ysc.withdrawal(investor.ethExitPriceProfit, investor.yEL);
+							investor.cashOutValue = investor.cashOutEth * investor.ethExitPriceProfit;
+							//console.log('b', b, 'cashOutEth', investor.cashOutEth,'cashOutValue', investor.cashOutValue, 'ethExitPriceProfit', investor.ethExitPriceProfit, 'ethPrice', ethPrice[a], ethPrice[a-1])
+						}
+						//console.log(ysc)
+					}
+
+					let investorvalue = getInvestorValue(investor, ysc, ethPrice[a]);
+					investor.value.push(investorvalue);
+					//console.log('price',ethPrice[a],'b',b,'investorvalue',investorvalue)
+					
+				}
+
+				nav.push(((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalBorrowedValue))
+
+			}
+			removeWithdrawalDuplicates(investors);
+
+		}
+
+		runSimulation();
+
+
+		//chartjs
 		var config = {
 			type: 'line',
 			data: {
 				labels: [...Array(ethPrice.length).keys()],
 				datasets: [
 				{
-					label: 'investor1 value',
+					label: 'investor1 entry: ' + investors[0].ethEnterPrice + ' exitP: ' + investors[0].ethExitPriceProfit + ' exitL: ' + investors[0].ethExitPriceLoss,
 					data: investors[0].value,
 					backgroundColor: window.chartColors.red,
 					borderColor: window.chartColors.red,
@@ -37,7 +106,7 @@
 					yAxisID: 'Investor_Value'
 				}, 
 				{
-					label: 'investor2 value',
+					label: 'investor2 entry: ' + investors[1].ethEnterPrice + ' exitP: ' + investors[1].ethExitPriceProfit + ' exitL: ' + investors[1].ethExitPriceLoss,
 					data: investors[1].value,
 					backgroundColor: window.chartColors.blue,
 					borderColor: window.chartColors.blue,
@@ -48,7 +117,7 @@
 					yAxisID: 'Investor_Value'
 				}, 
 				{
-					label: 'investor3 value',
+					label: 'investor3 entry: ' + investors[2].ethEnterPrice + ' exitP: ' + investors[2].ethExitPriceProfit + ' exitL: ' + investors[2].ethExitPriceLoss,
 					data: investors[2].value,
 					backgroundColor: window.chartColors.orange,
 					borderColor: window.chartColors.orange,
@@ -124,6 +193,118 @@
 			var ctx = document.getElementById('canvas').getContext('2d');
 			window.myLine = new Chart(ctx, config);
 		};
+
+		document.getElementById('randomizeData').addEventListener('click', function() {
+			
+			investors = [];
+			ethPrice = [];
+			nav = [0];
+			initInvestor(investors, true);
+			ethPrice = randomlyGenerateEthPrice(80, 40, 10, investors);
+			runSimulation();
+			window.myLine.destroy();
+			var ctx = document.getElementById('canvas').getContext('2d');
+			window.myLine = new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: [...Array(ethPrice.length).keys()],
+					datasets: [
+					{
+						label: 'investor1 entry: ' + investors[0].ethEnterPrice + ' exitP: ' + investors[0].ethExitPriceProfit + ' exitL: ' + investors[0].ethExitPriceLoss,
+						data: investors[0].value,
+						backgroundColor: window.chartColors.red,
+						borderColor: window.chartColors.red,
+						fill: false,
+						borderDash: [5, 5],
+						pointRadius: 15,
+						pointHoverRadius: 10,
+						yAxisID: 'Investor_Value'
+					}, 
+					{
+						label: 'investor2 entry: ' + investors[1].ethEnterPrice + ' exitP: ' + investors[1].ethExitPriceProfit + ' exitL: ' + investors[1].ethExitPriceLoss,
+						data: investors[1].value,
+						backgroundColor: window.chartColors.blue,
+						borderColor: window.chartColors.blue,
+						fill: false,
+						borderDash: [5, 5],
+						pointRadius: 15,
+						pointHoverRadius: 10,
+						yAxisID: 'Investor_Value'
+					}, 
+					{
+						label: 'investor3 entry: ' + investors[2].ethEnterPrice + ' exitP: ' + investors[2].ethExitPriceProfit + ' exitL: ' + investors[2].ethExitPriceLoss,
+						data: investors[2].value,
+						backgroundColor: window.chartColors.orange,
+						borderColor: window.chartColors.orange,
+						fill: false,
+						borderDash: [5, 5],
+						pointRadius: 15,
+						pointHoverRadius: 10,
+						yAxisID: 'Investor_Value'
+					}, 
+					{
+						label: 'NAV',
+						data: nav,
+						backgroundColor: window.chartColors.green,
+						borderColor: window.chartColors.green,
+						fill: false,
+						pointHitRadius: 20,
+						pointRadius: 10,
+						pointHoverRadius: 30,
+						yAxisID: 'Investor_Value'
+					},
+					{
+						label: 'price',
+						data: ethPrice,
+						backgroundColor: window.chartColors.yellow,
+						borderColor: window.chartColors.yellow,
+						fill: false,
+						pointHitRadius: 20,
+						pointRadius: 10,
+						pointHoverRadius: 30,
+					}]
+				},
+				options: {
+					responsive: true,
+					legend: {
+						position: 'bottom',
+					},
+					hover: {
+						mode: 'index'
+					},
+					scales: {
+						xAxes: [{
+							display: true,
+							scaleLabel: {
+								display: true,
+								labelString: 'Steps'
+							}
+						}],
+						yAxes: [{
+								type: 'linear', 
+								display: true,
+								position: 'left',
+								id: 'Price',
+								labelString: 'Price',
+							}, {
+								type: 'linear', 
+								display: true,
+								position: 'right',
+								id: 'Investor_Value',
+
+								gridLines: {
+									drawOnChartArea: false, 
+								},
+							}],
+					},
+					title: {
+						display: true,
+						text: 'leverage ETH'
+					}
+				}
+			});
+		});
+
 	</script>
 </body>
 
