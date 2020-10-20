@@ -26,12 +26,37 @@ function randomlyGenerateInvestor(){
     };
     return investor;
 }
+function adjustPrice(ethPrice, targetPrice, investors, b){
+    if(targetPrice.between(ethPrice[ethPrice.length - 1], ethPrice[ethPrice.length - 2], true)){
+        let tempprice = ethPrice[ethPrice.length - 1];
+        ethPrice[ethPrice.length - 1] = targetPrice - 1;
+        ethPrice.push(targetPrice);
+        ethPrice.push(targetPrice + 1);
+        ethPrice.push(tempprice);
+        if(b !== undefined){
+            investors.splice(b,1); //remove element
+        }
+    }
+    return ethPrice;
+}
 
-function randomlyGenerateEthPrice(start, percentChange, steps){
+function randomlyGenerateEthPrice(start, percentChange, steps, investor){
+    var investors = [...investor]
     var ethPrice = [];
     ethPrice.push(start)
     for(var a = 0; a < steps; a++){
-        ethPrice.push(ethPrice[ethPrice.length - 1] * (100 + percentChange - random(0,percentChange * 2)) * 0.01)
+        ethPrice.push(ethPrice[ethPrice.length - 1] * (1 + (percentChange - random(0,percentChange * 2)) * 0.01))
+        if(a > 0){
+            //add investor's enter and exit price and +1 -1
+            for(var b = 0; b < investors.length; b++){
+                ethPrice = adjustPrice(ethPrice, investors[b].ethEnterPrice);
+                if(investors[b].ethExitPriceLoss.between(ethPrice[ethPrice.length - 1], ethPrice[ethPrice.length - 2], true)){
+                    ethPrice = adjustPrice(ethPrice, investors[b].ethExitPriceLoss, investors, b);
+                }
+                else
+                    ethPrice = adjustPrice(ethPrice, investors[b].ethExitPriceProfit, investors, b);
+            }
+        }
     }
     return ethPrice;
 }
@@ -178,7 +203,8 @@ class ySC{
         return withdrawalAmount * (1 - 0.005); //0.5% withdrawal fee
     }
 }
-var ethPrice = [110,104,101,100,99,90,80,75,50,35,34,33,30,26,25,24,20,50, 75, 90, 99, 100, 101, 104, 105, 106, 110];
+var ethPrice;
+ //ethPrice = [110,104,101,100,99,90,80,75,50,35,34,33,30,26,25,24,20,50, 75, 90, 99, 100, 101, 104, 105, 106, 110];
 var investors = [];
 investors.push({
     usdAmount: 1000,
@@ -215,7 +241,7 @@ var nav = [0];
 let totalyEL = [1];
 function runSimulation(){
 
-    //var ethPrice = randomlyGenerateEthPrice(100, 50, 10);
+    ethPrice = randomlyGenerateEthPrice(80, 40, 10, investors);
 
     //for(let a = 0; a < 5; a++){
         //investors.push(randomlyGenerateInvestor());
@@ -261,7 +287,6 @@ function runSimulation(){
                     investor.yEL === null ? null :
                     ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue) === 0 ? null :
                         (investor.yEL / ysc.yELSupply) * ((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue);
-
             investor.value.push( investorvalue);
         }
 
@@ -269,6 +294,11 @@ function runSimulation(){
         nav.push(((ysc.totalLockedETH + ysc.totalFreeETH) * ethPrice[a]) - (ysc.totalOwedValue))
 
     }
+    for(let b = 0; b < investors.length; b++){
+        let investor = investors[b];
+        investor.value = [...new Set(investor.value)];
+    }
+
 }
 
 runSimulation();
