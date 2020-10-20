@@ -24,6 +24,22 @@
 	<button id="randomizeData">Randomize Data</button>
 	<br><br>
 	<a href="https://gov.yearn.finance/t/proposal-creating-a-leverage-eth-product-for-yfi/7017/15" rel="nofollow">[proposal] A leverage eth product for YFI</a>
+	<p>
+		The above chart is an example simulation of 3 traders buying and selling into a 1.25x leveraged ETH fund. Each investor invests $1000usd. Investor 1's entry is $100/ETH. 
+		When he enters, the fund nav increases by $1000 and gets 12.5 ETH of exposure. 
+	</p>
+	<p>
+		Investor 2 enters at $34/ETH. $100 to $34 is a 66% loss. At 1.25x leverage, this is a 82.5% loss. 
+		At $34, the NAV currently is $175 before Investor 2's $1000usd is invested and $1175 after.  The fund now has 49.26 ETH of exposure.
+	</p>
+	<p>
+		Investor 3 enters at $25/ETH. $100 to $25 is a 75% loss. At 1.25x leverage, this is a 93.75% loss. Investor 1's $1000usd investment is now worth $62.5. 
+		Investor 2 entered at $34/ETH. $34 to $25 is a 26.47% loss. At 1.25 leverage, this is a 33.1% loss. Investor 2's $1000usd investment is now worth $669.1176. 
+		$62.5 + $669.1176 + $1000 = $1731.617 which is the NAV at $25/ETH.
+	</p>
+	<p>
+		For more info, please check out the link above for ongoing discussions.
+	</p>
 	<script>
 		var ethPrice;
 		
